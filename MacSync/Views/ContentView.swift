@@ -1118,23 +1118,7 @@ public struct ContentView: View {
         .onHover { hovering in
             viewModel.hoveredItemId = hovering ? item.id : nil
         }
-        .onTapGesture(count: 2) {
-            if item.isFolder {
-                Task { await viewModel.openAndroidFolder(item) }
-            } else {
-                Task { await viewModel.previewSelectedItem() }
-            }
-        }
-        .onTapGesture {
-            let flags = NSEvent.modifierFlags
-            if flags.contains(.command) {
-                viewModel.toggleSelection(for: item.id)
-            } else if flags.contains(.shift) {
-                viewModel.selectRange(to: item.id)
-            } else {
-                viewModel.selectSingle(item.id)
-            }
-        }
+        .fileItemTapGestures(item: item, viewModel: viewModel)
         // Drag directly to Finder
         .onDrag {
             let provider = NSItemProvider()
@@ -1258,23 +1242,7 @@ public struct ContentView: View {
         .onHover { hovering in
             viewModel.hoveredItemId = hovering ? item.id : nil
         }
-        .onTapGesture(count: 2) {
-            if item.isFolder {
-                Task { await viewModel.openAndroidFolder(item) }
-            } else {
-                Task { await viewModel.previewSelectedItem() }
-            }
-        }
-        .onTapGesture {
-            let flags = NSEvent.modifierFlags
-            if flags.contains(.command) {
-                viewModel.toggleSelection(for: item.id)
-            } else if flags.contains(.shift) {
-                viewModel.selectRange(to: item.id)
-            } else {
-                viewModel.selectSingle(item.id)
-            }
-        }
+        .fileItemTapGestures(item: item, viewModel: viewModel)
         .onDrag {
             let provider = NSItemProvider()
             provider.suggestedName = item.name
@@ -1730,5 +1698,38 @@ public struct ContentView: View {
         .padding(20)
         .frame(width: 420)
         .preferredColorScheme(.dark)
+    }
+}
+
+// MARK: - File Item Tap Gestures (Instant Single Click for Folders, Double Click Preview for Files)
+private extension View {
+    @ViewBuilder
+    func fileItemTapGestures(item: MTPItem, viewModel: AppViewModel) -> some View {
+        if item.isFolder {
+            self.onTapGesture {
+                let flags = NSEvent.modifierFlags
+                if flags.contains(.command) {
+                    viewModel.toggleSelection(for: item.id)
+                } else if flags.contains(.shift) {
+                    viewModel.selectRange(to: item.id)
+                } else {
+                    Task { await viewModel.openAndroidFolder(item) }
+                }
+            }
+        } else {
+            self.onTapGesture(count: 2) {
+                Task { await viewModel.previewSelectedItem() }
+            }
+            .onTapGesture {
+                let flags = NSEvent.modifierFlags
+                if flags.contains(.command) {
+                    viewModel.toggleSelection(for: item.id)
+                } else if flags.contains(.shift) {
+                    viewModel.selectRange(to: item.id)
+                } else {
+                    viewModel.selectSingle(item.id)
+                }
+            }
+        }
     }
 }

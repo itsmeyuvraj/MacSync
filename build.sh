@@ -71,5 +71,9 @@ codesign --force --sign - "${FRAMEWORKS_DIR}/libmtp.9.dylib"
 echo "==> Code signing with USB and filesystem entitlements..."
 codesign --force --deep --sign - --entitlements MacSync/MacSync.entitlements MacSync.app
 
+# Refresh LaunchServices icon registration and touch bundle
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f MacSync.app 2>/dev/null || true
+touch MacSync.app
+
 echo "✅ Build complete: MacSync.app is ready!"
 echo "   Launch with: open MacSync.app"
