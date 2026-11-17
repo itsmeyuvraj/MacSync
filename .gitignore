@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.dSYM/
+
+# Build artifacts
+MacSync.app/
+MacSyncBinary
+*.ipa
+*.app.dSYM.zip
+
+# Homebrew / Package artifacts
+*.dylib
+*.framework/

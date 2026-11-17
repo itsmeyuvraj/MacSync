@@ -1,0 +1,75 @@
+name: MacSync
+options:
+  bundleIdPrefix: com.macsync
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  SWIFT_VERSION: "5.9"
+  MACOSX_DEPLOYMENT_TARGET: "14.0"
+targets:
+  MacSync:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: MacSync
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.macsync.MacSync
+      INFOPLIST_FILE: MacSync/Info.plist
+      CODE_SIGN_ENTITLEMENTS: MacSync/MacSync.entitlements
+      SWIFT_OBJC_BRIDGING_HEADER: MacSync/Bridging-Header.h
+      HEADER_SEARCH_PATHS:
+        - $(inherited)
+        - /opt/homebrew/opt/libmtp/include
+        - /opt/homebrew/include
+        - /usr/local/opt/libmtp/include
+        - /usr/local/include
+      LIBRARY_SEARCH_PATHS:
+        - $(inherited)
+        - /opt/homebrew/opt/libmtp/lib
+        - /opt/homebrew/lib
+        - /usr/local/opt/libmtp/lib
+        - /usr/local/lib
+      OTHER_LDFLAGS:
+        - $(inherited)
+        - -lmtp
+      CODE_SIGN_IDENTITY: "-"
+      CODE_SIGNING_REQUIRED: NO
+      CODE_SIGNING_ALLOWED: NO
+    postBuildScripts:
+      - name: "Bundle and Sign Standalone Homebrew Libraries"
+        script: |
+          set -e
+          if [ -d "/opt/homebrew" ]; then
+              BREW_PREFIX="/opt/homebrew"
+          elif [ -d "/usr/local" ]; then
+              BREW_PREFIX="/usr/local"
+          else
+              BREW_PREFIX="$(brew --prefix 2>/dev/null || echo '/opt/homebrew')"
+          fi
+
+          FRAMEWORKS_DIR="${TARGET_BUILD_DIR}/${PRODUCT_NAME}.app/Contents/Frameworks"
+          mkdir -p "${FRAMEWORKS_DIR}"
+
+          LIBMTP_SRC="${BREW_PREFIX}/opt/libmtp/lib/libmtp.9.dylib"
+          LIBUSB_SRC="${BREW_PREFIX}/opt/libusb/lib/libusb-1.0.0.dylib"
+          [ ! -f "${LIBMTP_SRC}" ] && LIBMTP_SRC="${BREW_PREFIX}/lib/libmtp.9.dylib"
+          [ ! -f "${LIBUSB_SRC}" ] && LIBUSB_SRC="${BREW_PREFIX}/lib/libusb-1.0.0.dylib"
+
+          cp -f "${LIBMTP_SRC}" "${FRAMEWORKS_DIR}/libmtp.9.dylib"
+          cp -f "${LIBUSB_SRC}" "${FRAMEWORKS_DIR}/libusb-1.0.0.dylib"
+          chmod 755 "${FRAMEWORKS_DIR}"/*.dylib
+
+          install_name_tool -id @rpath/libusb-1.0.0.dylib "${FRAMEWORKS_DIR}/libusb-1.0.0.dylib"
+          install_name_tool -id @rpath/libmtp.9.dylib "${FRAMEWORKS_DIR}/libmtp.9.dylib"
+          install_name_tool -change "${BREW_PREFIX}/opt/libusb/lib/libusb-1.0.0.dylib" @rpath/libusb-1.0.0.dylib "${FRAMEWORKS_DIR}/libmtp.9.dylib" 2>/dev/null || true
+          install_name_tool -change "${BREW_PREFIX}/lib/libusb-1.0.0.dylib" @rpath/libusb-1.0.0.dylib "${FRAMEWORKS_DIR}/libmtp.9.dylib" 2>/dev/null || true
+
+          APP_BINARY="${TARGET_BUILD_DIR}/${PRODUCT_NAME}.app/Contents/MacOS/${PRODUCT_NAME}"
+          install_name_tool -add_rpath @executable_path/../Frameworks "${APP_BINARY}" 2>/dev/null || true
+          install_name_tool -change "${BREW_PREFIX}/opt/libmtp/lib/libmtp.9.dylib" @rpath/libmtp.9.dylib "${APP_BINARY}" 2>/dev/null || true
+          install_name_tool -change "${BREW_PREFIX}/lib/libmtp.9.dylib" @rpath/libmtp.9.dylib "${APP_BINARY}" 2>/dev/null || true
+
+          codesign --force --sign - "${FRAMEWORKS_DIR}/libusb-1.0.0.dylib"
+          codesign --force --sign - "${FRAMEWORKS_DIR}/libmtp.9.dylib"
+          codesign --force --deep --sign - --entitlements "${SRCROOT}/MacSync/MacSync.entitlements" "${TARGET_BUILD_DIR}/${PRODUCT_NAME}.app"
