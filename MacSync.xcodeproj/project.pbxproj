@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1435C503A83AC037CC8B7CA9 /* USBDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20833179C06DB5FEDA09EB39 /* USBDetector.swift */; };
 		3642B66069E497A065D8DEFE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B53A45709A5398F2B0EBC7CF /* ContentView.swift */; };
 		3E656CEDBD4F34D3F6739A13 /* MTPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4F8F08009387B90D4576063 /* MTPService.swift */; };
 		45AB6DACA307268ADB3EBCE5 /* QuickLookController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 638AEDF49F44FF113C3C4C5D /* QuickLookController.swift */; };
@@ -20,6 +21,7 @@
 
 /* Begin PBXFileReference section */
 		10824A273CE1DCCA5A328EE2 /* Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Bridging-Header.h"; sourceTree = "<group>"; };
+		20833179C06DB5FEDA09EB39 /* USBDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBDetector.swift; sourceTree = "<group>"; };
 		2B0D485BEA3830161492BB14 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		2B1E7B6409F744218497A120 /* FilePaneViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePaneViews.swift; sourceTree = "<group>"; };
 		3622FC83386597B2FDF64233 /* MacSync.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacSync.entitlements; sourceTree = "<group>"; };
@@ -41,6 +43,7 @@
 			children = (
 				AE4582C64DB8E36EFA4C71DD /* LocalFileService.swift */,
 				B4F8F08009387B90D4576063 /* MTPService.swift */,
+				20833179C06DB5FEDA09EB39 /* USBDetector.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -209,6 +212,7 @@
 				8E8C4A2BE1C83A6FB1677F6B /* MTPModels.swift in Sources */,
 				3E656CEDBD4F34D3F6739A13 /* MTPService.swift in Sources */,
 				45AB6DACA307268ADB3EBCE5 /* QuickLookController.swift in Sources */,
+				1435C503A83AC037CC8B7CA9 /* USBDetector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

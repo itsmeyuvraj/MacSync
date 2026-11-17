@@ -20,6 +20,10 @@ public final class AppViewModel {
     public var errorMessage: String?
     public var conflictingProcesses: [String] = []
 
+    // MARK: - USB Hardware & Link Speed State
+    public var detectedChargeOnlyDevice: DetectedUSBDevice? = nil
+    public var currentUSBSpeedInfo: USBSpeedInfo? = nil
+
     // MARK: - Transfer Progress State
     public var currentProgress: TransferProgress?
     public var isTransferring: Bool = false
@@ -133,6 +137,7 @@ public final class AppViewModel {
         self.currentLocalURL = initialURL
         rebuildLocalBreadcrumbs(for: initialURL)
         refreshLocalDirectory()
+        startConnectionMonitoring()
     }
 
     // MARK: - Local Pane Filtering & Sorting
@@ -234,15 +239,21 @@ public final class AppViewModel {
     }
 
     // MARK: - Device Connection Operations
-    public func connectDevice() async {
+    public func connectDevice(silent: Bool = false) async {
         guard deviceInfo == nil && !isConnecting else { return }
         isConnecting = true
-        errorMessage = nil
+        if !silent {
+            errorMessage = nil
+        }
 
         do {
-            let info = try await mtpService.connect()
+            var info = try await mtpService.connect()
+            let speedInfo = USBDetector.shared.getUSBSpeedInfo()
+            info.usbSpeedInfo = speedInfo
             self.deviceInfo = info
+            self.currentUSBSpeedInfo = speedInfo
             self.conflictingProcesses = []
+            self.detectedChargeOnlyDevice = nil
 
             if let firstStorage = info.storages.first {
                 self.selectedStorage = firstStorage
@@ -253,20 +264,36 @@ public final class AppViewModel {
                 ]
                 await refreshAndroidDirectory()
             }
+            stopConnectionMonitoring()
             startBatteryPolling()
         } catch let error as MTPError {
             if case .deviceLockedByProcess(let procs) = error {
                 self.conflictingProcesses = procs
             }
-            self.errorMessage = error.localizedDescription
+            if !silent {
+                self.errorMessage = error.localizedDescription
+            }
             self.deviceInfo = nil
             self.selectedStorage = nil
             self.androidItems = []
+            self.currentUSBSpeedInfo = nil
+
+            // Check if device is detected on USB bus in charge-only or locked mode
+            self.detectedChargeOnlyDevice = USBDetector.shared.detectChargeOnlyAndroid()
+                ?? USBDetector.shared.detectConnectedAndroid()
+            startConnectionMonitoring()
         } catch {
-            self.errorMessage = error.localizedDescription
+            if !silent {
+                self.errorMessage = error.localizedDescription
+            }
             self.deviceInfo = nil
             self.selectedStorage = nil
             self.androidItems = []
+            self.currentUSBSpeedInfo = nil
+
+            self.detectedChargeOnlyDevice = USBDetector.shared.detectChargeOnlyAndroid()
+                ?? USBDetector.shared.detectConnectedAndroid()
+            startConnectionMonitoring()
         }
 
         isConnecting = false
@@ -289,6 +316,42 @@ public final class AppViewModel {
         self.thumbnailCache = [:]
         self.androidBreadcrumbs = []
         self.androidSelection = []
+        self.currentUSBSpeedInfo = nil
+        startConnectionMonitoring()
+    }
+
+    // MARK: - USB Connection Monitoring (Auto-detect & Charge-Only Polling)
+    private var connectionMonitoringTask: Task<Void, Never>?
+
+    public func startConnectionMonitoring() {
+        stopConnectionMonitoring()
+        connectionMonitoringTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_500_000_000) // Poll every 2.5 seconds
+                guard let self = self else { break }
+                if self.deviceInfo != nil || self.isConnecting {
+                    continue
+                }
+
+                if let chargeOnly = USBDetector.shared.detectChargeOnlyAndroid() {
+                    self.detectedChargeOnlyDevice = chargeOnly
+                } else if let connected = USBDetector.shared.detectConnectedAndroid() {
+                    if connected.hasMTPInterface {
+                        // Phone exposes MTP interface! Auto-connect silently
+                        await self.connectDevice(silent: true)
+                    } else {
+                        self.detectedChargeOnlyDevice = connected
+                    }
+                } else {
+                    self.detectedChargeOnlyDevice = nil
+                }
+            }
+        }
+    }
+
+    public func stopConnectionMonitoring() {
+        connectionMonitoringTask?.cancel()
+        connectionMonitoringTask = nil
     }
 
     // MARK: - Live Battery Monitoring
@@ -327,7 +390,8 @@ public final class AppViewModel {
                 currentBattery: curBat,
                 maxBattery: maxBat,
                 storages: currentInfo.storages,
-                isCharging: currentInfo.isCharging
+                isCharging: currentInfo.isCharging,
+                usbSpeedInfo: currentInfo.usbSpeedInfo
             )
         }
     }

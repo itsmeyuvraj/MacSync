@@ -67,6 +67,94 @@ public struct TransferProgress: Sendable {
     }
 }
 
+// MARK: - USB Hardware & Speed Models
+public struct DetectedUSBDevice: Sendable, Equatable {
+    public let name: String
+    public let vendorId: Int
+    public let productId: Int
+    public let speed: Int
+    public let linkSpeed: Int64
+    public let bcdUSB: Int
+    public let isAndroidVendor: Bool
+    public let hasMTPInterface: Bool
+
+    public init(name: String, vendorId: Int, productId: Int, speed: Int, linkSpeed: Int64 = 0, bcdUSB: Int, isAndroidVendor: Bool, hasMTPInterface: Bool = false) {
+        self.name = name
+        self.vendorId = vendorId
+        self.productId = productId
+        self.speed = speed
+        self.linkSpeed = linkSpeed
+        self.bcdUSB = bcdUSB
+        self.isAndroidVendor = isAndroidVendor
+        self.hasMTPInterface = hasMTPInterface
+    }
+}
+
+public enum USBSpeedType: String, Sendable {
+    case usb2 = "USB 2.0"
+    case usb3 = "USB 3.0"
+    case usb31 = "USB 3.1"
+    case usb32 = "USB 3.2"
+    case unknown = "USB"
+
+    public var maxBandwidth: String {
+        switch self {
+        case .usb2: return "480 Mbps (~35 MB/s)"
+        case .usb3: return "5 Gbps (~450 MB/s)"
+        case .usb31: return "10 Gbps (~900 MB/s)"
+        case .usb32: return "20 Gbps"
+        case .unknown: return "Unknown"
+        }
+    }
+
+    public var isFast: Bool {
+        return self != .usb2 && self != .unknown
+    }
+}
+
+public struct USBSpeedInfo: Sendable, Equatable {
+    public let speedType: USBSpeedType
+    public let rawSpeed: Int
+    public let linkSpeed: Int64
+    public let bcdUSB: Int
+    public let productName: String
+    public let vendorId: Int
+    public let productId: Int
+
+    public init(speedType: USBSpeedType, rawSpeed: Int, linkSpeed: Int64 = 0, bcdUSB: Int, productName: String, vendorId: Int, productId: Int) {
+        self.speedType = speedType
+        self.rawSpeed = rawSpeed
+        self.linkSpeed = linkSpeed
+        self.bcdUSB = bcdUSB
+        self.productName = productName
+        self.vendorId = vendorId
+        self.productId = productId
+    }
+    
+    public var label: String {
+        switch speedType {
+        case .usb2:
+            return "USB 2.0 • 480 Mbps"
+        case .usb3:
+            return "USB 3.0 • 5 Gbps"
+        case .usb31:
+            return "USB 3.1 • 10 Gbps"
+        case .usb32:
+            return "USB 3.2 • 20 Gbps"
+        case .unknown:
+            return "USB"
+        }
+    }
+
+    public var speedTip: String {
+        if speedType.isFast {
+            return "SuperSpeed link active (\(speedType.maxBandwidth)). Fast transfers enabled!"
+        } else {
+            return "Connected at USB 2.0 (480 Mbps / max ~35 MB/s). Connect via a USB 3.0/3.1 SuperSpeed Type-C cable directly to your Mac for up to 10x faster transfers (~450 MB/s)."
+        }
+    }
+}
+
 // MARK: - Device Info
 public struct MTPDeviceInfo: Identifiable, Sendable {
     public let id: String
@@ -78,6 +166,7 @@ public struct MTPDeviceInfo: Identifiable, Sendable {
     public let maxBattery: Int
     public let storages: [MTPStorage]
     public let isCharging: Bool
+    public var usbSpeedInfo: USBSpeedInfo? = nil
 
     public var batteryPercentage: Double {
         guard maxBattery > 0 else { return 0.0 }
@@ -113,7 +202,8 @@ public struct MTPDeviceInfo: Identifiable, Sendable {
         currentBattery: Int,
         maxBattery: Int,
         storages: [MTPStorage],
-        isCharging: Bool = true
+        isCharging: Bool = true,
+        usbSpeedInfo: USBSpeedInfo? = nil
     ) {
         self.id = id
         self.friendlyName = friendlyName
@@ -124,6 +214,7 @@ public struct MTPDeviceInfo: Identifiable, Sendable {
         self.maxBattery = maxBattery
         self.storages = storages
         self.isCharging = isCharging
+        self.usbSpeedInfo = usbSpeedInfo
     }
 }
 

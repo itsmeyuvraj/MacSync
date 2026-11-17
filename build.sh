@@ -32,6 +32,7 @@ swiftc \
   -lmtp \
   -import-objc-header MacSync/Bridging-Header.h \
   MacSync/Models/MTPModels.swift \
+  MacSync/Services/USBDetector.swift \
   MacSync/Services/MTPService.swift \
   MacSync/Services/LocalFileService.swift \
   MacSync/Controllers/QuickLookController.swift \

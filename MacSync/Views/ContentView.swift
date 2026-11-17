@@ -328,6 +328,12 @@ public struct ContentView: View {
 
             Spacer()
 
+            if let speed = viewModel.currentUSBSpeedInfo {
+                usbSpeedBadge(speed)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+            }
+
             // Bottom Footer (Settings on left, live battery status on right)
             Rectangle()
                 .fill(Color.black.opacity(0.3))
@@ -1333,33 +1339,112 @@ public struct ContentView: View {
         VStack(spacing: 18) {
             Spacer()
 
-            ZStack {
-                // Soft liquid radial glow
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [blueAccent.opacity(0.18), Color.clear],
-                            center: .center,
-                            startRadius: 10,
-                            endRadius: 70
+            if let chargeDev = viewModel.detectedChargeOnlyDevice {
+                // Prominent Charge-Only Warning Banner
+                VStack(spacing: 14) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.orange.opacity(0.18))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "battery.100.bolt")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.orange)
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(chargeDev.name)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(textPrimary)
+                                Text("• Charge Only")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.orange)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Color.orange.opacity(0.15)))
+                            }
+
+                            Text("Device connected, but file transfer is disabled.")
+                                .font(.system(size: 12))
+                                .foregroundColor(textSecondary)
+                        }
+                        Spacer()
+                    }
+
+                    // Steps
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("To enable File Transfer:")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(textPrimary)
+
+                        chargeStepRow(num: "1", text: "Unlock your phone screen")
+                        chargeStepRow(num: "2", text: "Swipe down notifications & tap 'Charging via USB'")
+                        chargeStepRow(num: "3", text: "Select 'File Transfer' (or 'Android Auto / MTP')")
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.black.opacity(0.25))
+                    .cornerRadius(8)
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 11))
+                            .foregroundColor(textSecondary.opacity(0.8))
+                        Text("No popup? Ensure your cable supports data transfer (not power-only).")
+                            .font(.system(size: 11))
+                            .foregroundColor(textSecondary.opacity(0.8))
+                        Spacer()
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: 420)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(red: 40/255.0, green: 34/255.0, blue: 26/255.0).opacity(0.9))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.orange.opacity(0.35), lineWidth: 1)
                         )
-                    )
-                    .frame(width: 120, height: 120)
+                )
+            } else {
+                ZStack {
+                    // Soft liquid radial glow
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [blueAccent.opacity(0.18), Color.clear],
+                                center: .center,
+                                startRadius: 10,
+                                endRadius: 70
+                            )
+                        )
+                        .frame(width: 120, height: 120)
 
-                Image(systemName: "cable.connector.slash")
-                    .font(.system(size: 42, weight: .light))
+                    Image(systemName: "cable.connector.slash")
+                        .font(.system(size: 42, weight: .light))
+                        .foregroundColor(textSecondary)
+                }
+
+                Text("Connect Android via USB")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(textPrimary)
+
+                Text("Unlock your phone and select 'File Transfer (MTP)' in USB Settings.")
+                    .font(.system(size: 13))
                     .foregroundColor(textSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 340)
+
+                HStack(spacing: 5) {
+                    Image(systemName: "cable.connector")
+                        .font(.system(size: 11))
+                        .foregroundColor(textSecondary.opacity(0.7))
+                    Text("Use a data-capable USB cable. Pure charging cables will not be recognized.")
+                        .font(.system(size: 11))
+                        .foregroundColor(textSecondary.opacity(0.7))
+                }
             }
-
-            Text("Connect Android via USB")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(textPrimary)
-
-            Text("Unlock your phone and select 'File Transfer (MTP)' in USB Settings.")
-                .font(.system(size: 13))
-                .foregroundColor(textSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 340)
 
             if !viewModel.conflictingProcesses.isEmpty {
                 VStack(spacing: 8) {
@@ -1393,9 +1478,9 @@ public struct ContentView: View {
                         .padding(.horizontal, 16)
                 } else {
                     HStack(spacing: 6) {
-                        Image(systemName: "bolt.fill")
+                        Image(systemName: viewModel.detectedChargeOnlyDevice != nil ? "arrow.clockwise" : "bolt.fill")
                             .font(.system(size: 11))
-                        Text("Connect Device")
+                        Text(viewModel.detectedChargeOnlyDevice != nil ? "Retry Connection" : "Connect Device")
                             .font(.system(size: 13, weight: .medium))
                     }
                     .padding(.horizontal, 14)
@@ -1407,7 +1492,9 @@ public struct ContentView: View {
                 Capsule()
                     .fill(
                         LinearGradient(
-                            colors: [blueAccent, Color(red: 0.22, green: 0.52, blue: 0.82)],
+                            colors: viewModel.detectedChargeOnlyDevice != nil
+                                ? [Color.orange, Color(red: 0.85, green: 0.45, blue: 0.15)]
+                                : [blueAccent, Color(red: 0.22, green: 0.52, blue: 0.82)],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -1415,7 +1502,7 @@ public struct ContentView: View {
                     .overlay(
                         Capsule().stroke(Color.white.opacity(0.2), lineWidth: 0.5)
                     )
-                    .shadow(color: blueAccent.opacity(0.3), radius: 6, y: 2)
+                    .shadow(color: (viewModel.detectedChargeOnlyDevice != nil ? Color.orange : blueAccent).opacity(0.3), radius: 6, y: 2)
             )
             .foregroundColor(.white)
             .disabled(viewModel.isConnecting)
@@ -1423,6 +1510,59 @@ public struct ContentView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func chargeStepRow(num: String, text: String) -> some View {
+        HStack(spacing: 8) {
+            Text(num)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.black)
+                .frame(width: 16, height: 16)
+                .background(Circle().fill(Color.orange))
+            Text(text)
+                .font(.system(size: 11))
+                .foregroundColor(textSidebar)
+        }
+    }
+
+    private func usbSpeedBadge(_ speed: USBSpeedInfo) -> some View {
+        let isFast = speed.speedType.isFast
+        let badgeColor = isFast
+            ? Color(red: 0.22, green: 0.82, blue: 0.44) // emerald green
+            : Color(red: 0.95, green: 0.65, blue: 0.25) // warm amber
+
+        return Button {
+            viewModel.showDeviceSheet = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: isFast ? "bolt.horizontal.fill" : "gauge.with.needle")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(badgeColor)
+
+                Text(speed.label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(badgeColor)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Image(systemName: "info.circle")
+                    .font(.system(size: 9))
+                    .foregroundColor(badgeColor.opacity(0.7))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(badgeColor.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(badgeColor.opacity(0.25), lineWidth: 0.5)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .help(speed.speedTip)
     }
 
     // MARK: - Floating Liquid Transfer Island
@@ -1594,6 +1734,51 @@ public struct ContentView: View {
                 .padding(12)
                 .background(Color.white.opacity(0.04))
                 .cornerRadius(8)
+
+                if let speed = viewModel.currentUSBSpeedInfo {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("USB Connection")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(textPrimary)
+                            Spacer()
+                            HStack(spacing: 5) {
+                                Circle()
+                                    .fill(speed.speedType.isFast ? Color.green : Color.orange)
+                                    .frame(width: 6, height: 6)
+                                Text(speed.label)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(speed.speedType.isFast ? Color.green : Color.orange)
+                            }
+                        }
+
+                        infoRow(label: "Max Theoretical Rate", value: speed.speedType.maxBandwidth)
+
+                        if !speed.speedType.isFast {
+                            VStack(alignment: .leading, spacing: 5) {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "bolt.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.orange)
+                                    Text("Speed-Up Recommendation")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(.orange)
+                                }
+
+                                Text("Operating at USB 2.0 (capped at ~35 MB/s). Connect using a USB 3.0/3.1 SuperSpeed Type-C cable directly to your Mac to unlock up to 10x faster transfers (~450 MB/s).")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(9)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(6)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(8)
+                }
             } else {
                 Text("No device connected.")
                     .foregroundColor(textSecondary)
@@ -1619,7 +1804,7 @@ public struct ContentView: View {
             }
         }
         .padding(20)
-        .frame(width: 320)
+        .frame(width: 360)
         .preferredColorScheme(.dark)
     }
 

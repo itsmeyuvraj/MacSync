@@ -188,10 +188,6 @@ public actor MTPService {
     public func connect(force: Bool = false) throws -> MTPDeviceInfo {
         ensureInitialized()
 
-        if !force, let currentDev = device {
-            return try readDeviceInfo(from: currentDev)
-        }
-
         if let existing = device {
             LIBMTP_Release_Device(existing)
             self.device = nil
@@ -213,7 +209,7 @@ public actor MTPService {
         }
 
         defer {
-            free(rawDevices)
+            free(rawList)
         }
 
         guard let openedDevice = LIBMTP_Open_Raw_Device_Uncached(&rawList[0]) else {
@@ -306,7 +302,12 @@ public actor MTPService {
             throw MTPError.noDeviceConnected
         }
 
-        let fileListHead = LIBMTP_Get_Files_And_Folders(dev, storageId, parentId)
+        var fileListHead = LIBMTP_Get_Files_And_Folders(dev, storageId, parentId)
+        if fileListHead == nil && storageId != 0 {
+            fileListHead = LIBMTP_Get_Files_And_Folders(dev, 0, parentId)
+        }
+        LIBMTP_Clear_Errorstack(dev)
+
         var items: [MTPItem] = []
         var current = fileListHead
 
@@ -317,7 +318,14 @@ public actor MTPService {
             let name = node.pointee.filename != nil ? String(cString: node.pointee.filename) : "Unknown"
             let size = node.pointee.filesize
             let modTime = Date(timeIntervalSince1970: TimeInterval(node.pointee.modificationdate))
-            let isFolder = (node.pointee.filetype == LIBMTP_FILETYPE_FOLDER)
+            
+            // Robust folder determination:
+            // 1. Explicit LIBMTP_FILETYPE_FOLDER (0)
+            // 2. Android MTP frequently reports LIBMTP_FILETYPE_UNKNOWN (44) for folder associations without extensions
+            let ext = (name as NSString).pathExtension.lowercased()
+            let hasFileExtension = !ext.isEmpty && ext.count <= 5
+            let isFolder = (node.pointee.filetype == LIBMTP_FILETYPE_FOLDER) ||
+                           (node.pointee.filetype == LIBMTP_FILETYPE_UNKNOWN && size == 0 && !hasFileExtension)
             let typeRaw = node.pointee.filetype.rawValue
 
             items.append(
