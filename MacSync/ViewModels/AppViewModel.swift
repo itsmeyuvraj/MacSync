@@ -497,11 +497,32 @@ public final class AppViewModel {
         }
     }
 
-    public func deleteSelectedAndroidItems() async {
-        guard !androidSelection.isEmpty else { return }
+    public func deleteItem(_ item: MTPItem) async {
+        guard let storage = selectedStorage else { return }
         do {
-            for itemId in androidSelection {
-                try await mtpService.deleteObject(id: itemId)
+            try await mtpService.deleteItemRecursively(item: item, storageId: storage.id)
+            androidSelection.remove(item.id)
+            if currentAndroidFolderId == item.id {
+                await navigateToRoot()
+            } else {
+                await refreshAndroidDirectory()
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func deleteSelectedAndroidItems() async {
+        guard let storage = selectedStorage, !androidSelection.isEmpty else { return }
+        let selectedIds = Array(androidSelection)
+        do {
+            for itemId in selectedIds {
+                if let item = androidItems.first(where: { $0.id == itemId }) {
+                    try await mtpService.deleteItemRecursively(item: item, storageId: storage.id)
+                } else {
+                    try await mtpService.deleteObject(id: itemId)
+                }
+                androidSelection.remove(itemId)
             }
             await refreshAndroidDirectory()
         } catch {

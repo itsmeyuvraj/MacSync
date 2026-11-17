@@ -632,6 +632,20 @@ public struct ContentView: View {
             )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Open") {
+                Task { await viewModel.navigateToFolderItem(folder) }
+            }
+            Button("Rename...") {
+                viewModel.renameItemTarget = folder
+                viewModel.renameTargetName = folder.name
+                viewModel.showRenameSheet = true
+            }
+            Divider()
+            Button("Delete Folder", role: .destructive) {
+                Task { await viewModel.deleteItem(folder) }
+            }
+        }
         .onHover { hovering in
             viewModel.hoveredSidebarKey = hovering ? "folder_\(folder.id)" : nil
         }
@@ -1298,6 +1312,11 @@ public struct ContentView: View {
                 }
             }
             Divider()
+        } else {
+            Button("Open") {
+                Task { await viewModel.openAndroidFolder(item) }
+            }
+            Divider()
         }
         Button("Rename...") {
             viewModel.renameItemTarget = item
@@ -1305,7 +1324,7 @@ public struct ContentView: View {
             viewModel.showRenameSheet = true
         }
         Button("Delete", role: .destructive) {
-            Task { await viewModel.deleteSelectedAndroidItems() }
+            Task { await viewModel.deleteItem(item) }
         }
     }
 

@@ -375,6 +375,25 @@ public actor MTPService {
         }
     }
 
+    public func deleteItemRecursively(item: MTPItem, storageId: UInt32) async throws {
+        guard let dev = device else {
+            throw MTPError.noDeviceConnected
+        }
+
+        if item.isFolder {
+            // Delete all children first (Android MTP requires empty folder before folder deletion)
+            let children = (try? listFiles(storageId: storageId, parentId: item.id)) ?? []
+            for child in children {
+                try await deleteItemRecursively(item: child, storageId: storageId)
+            }
+        }
+
+        let status = LIBMTP_Delete_Object(dev, item.id)
+        guard status == 0 else {
+            throw MTPError.deleteFailed(id: item.id)
+        }
+    }
+
     public func renameObject(item: MTPItem, newName: String) throws {
         guard let dev = device else {
             throw MTPError.noDeviceConnected
