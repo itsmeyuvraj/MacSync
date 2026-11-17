@@ -134,4 +134,85 @@ public final class USBDetector: @unchecked Sendable {
             productId: dev.productId
         )
     }
+
+    // MARK: - Live USB Hardware Event Monitoring (Instant Disconnect / Connect)
+    private var notifyPort: IONotificationPortRef?
+    private var matchedIterator: io_iterator_t = 0
+    private var terminatedIterator: io_iterator_t = 0
+    public var onUSBChanged: (@Sendable () -> Void)?
+
+    public func startMonitoring(onChange: @escaping @Sendable () -> Void) {
+        stopMonitoring()
+        self.onUSBChanged = onChange
+
+        guard let port = IONotificationPortCreate(kIOMainPortDefault) else { return }
+        self.notifyPort = port
+
+        if let runLoopSource = IONotificationPortGetRunLoopSource(port)?.takeUnretainedValue() {
+            CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .defaultMode)
+        }
+
+        let refCon = Unmanaged.passUnretained(self).toOpaque()
+
+        // Match plugged devices
+        let matchDict1 = IOServiceMatching("IOUSBHostDevice") as NSMutableDictionary
+        IOServiceAddMatchingNotification(
+            port,
+            kIOMatchedNotification,
+            matchDict1,
+            { (ref, iterator) in
+                while case let obj = IOIteratorNext(iterator), obj != 0 {
+                    IOObjectRelease(obj)
+                }
+                guard let ref = ref else { return }
+                let detector = Unmanaged<USBDetector>.fromOpaque(ref).takeUnretainedValue()
+                detector.onUSBChanged?()
+            },
+            refCon,
+            &matchedIterator
+        )
+        while case let obj = IOIteratorNext(matchedIterator), obj != 0 {
+            IOObjectRelease(obj)
+        }
+
+        // Match unplugged / removed devices
+        let matchDict2 = IOServiceMatching("IOUSBHostDevice") as NSMutableDictionary
+        IOServiceAddMatchingNotification(
+            port,
+            kIOTerminatedNotification,
+            matchDict2,
+            { (ref, iterator) in
+                while case let obj = IOIteratorNext(iterator), obj != 0 {
+                    IOObjectRelease(obj)
+                }
+                guard let ref = ref else { return }
+                let detector = Unmanaged<USBDetector>.fromOpaque(ref).takeUnretainedValue()
+                detector.onUSBChanged?()
+            },
+            refCon,
+            &terminatedIterator
+        )
+        while case let obj = IOIteratorNext(terminatedIterator), obj != 0 {
+            IOObjectRelease(obj)
+        }
+    }
+
+    public func stopMonitoring() {
+        if let port = notifyPort {
+            if let runLoopSource = IONotificationPortGetRunLoopSource(port)?.takeUnretainedValue() {
+                CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .defaultMode)
+            }
+            IONotificationPortDestroy(port)
+            self.notifyPort = nil
+        }
+        if matchedIterator != 0 {
+            IOObjectRelease(matchedIterator)
+            matchedIterator = 0
+        }
+        if terminatedIterator != 0 {
+            IOObjectRelease(terminatedIterator)
+            terminatedIterator = 0
+        }
+        onUSBChanged = nil
+    }
 }

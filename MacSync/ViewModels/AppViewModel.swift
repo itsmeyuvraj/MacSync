@@ -137,7 +137,7 @@ public final class AppViewModel {
         self.currentLocalURL = initialURL
         rebuildLocalBreadcrumbs(for: initialURL)
         refreshLocalDirectory()
-        startConnectionMonitoring()
+        startUSBMonitoring()
     }
 
     // MARK: - Local Pane Filtering & Sorting
@@ -264,7 +264,6 @@ public final class AppViewModel {
                 ]
                 await refreshAndroidDirectory()
             }
-            stopConnectionMonitoring()
             startBatteryPolling()
         } catch let error as MTPError {
             if case .deviceLockedByProcess(let procs) = error {
@@ -281,7 +280,6 @@ public final class AppViewModel {
             // Check if device is detected on USB bus in charge-only or locked mode
             self.detectedChargeOnlyDevice = USBDetector.shared.detectChargeOnlyAndroid()
                 ?? USBDetector.shared.detectConnectedAndroid()
-            startConnectionMonitoring()
         } catch {
             if !silent {
                 self.errorMessage = error.localizedDescription
@@ -293,7 +291,6 @@ public final class AppViewModel {
 
             self.detectedChargeOnlyDevice = USBDetector.shared.detectChargeOnlyAndroid()
                 ?? USBDetector.shared.detectConnectedAndroid()
-            startConnectionMonitoring()
         }
 
         isConnecting = false
@@ -317,53 +314,69 @@ public final class AppViewModel {
         self.androidBreadcrumbs = []
         self.androidSelection = []
         self.currentUSBSpeedInfo = nil
-        startConnectionMonitoring()
+        self.detectedChargeOnlyDevice = USBDetector.shared.detectChargeOnlyAndroid()
     }
 
-    // MARK: - USB Connection Monitoring (Auto-detect & Charge-Only Polling)
-    private var connectionMonitoringTask: Task<Void, Never>?
-
-    public func startConnectionMonitoring() {
-        stopConnectionMonitoring()
-        connectionMonitoringTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 2_500_000_000) // Poll every 2.5 seconds
-                guard let self = self else { break }
-                if self.deviceInfo != nil || self.isConnecting {
-                    continue
-                }
-
-                if let chargeOnly = USBDetector.shared.detectChargeOnlyAndroid() {
-                    self.detectedChargeOnlyDevice = chargeOnly
-                } else if let connected = USBDetector.shared.detectConnectedAndroid() {
-                    if connected.hasMTPInterface {
-                        // Phone exposes MTP interface! Auto-connect silently
-                        await self.connectDevice(silent: true)
-                    } else {
-                        self.detectedChargeOnlyDevice = connected
-                    }
-                } else {
-                    self.detectedChargeOnlyDevice = nil
-                }
+    // MARK: - Live USB Hardware Event Monitoring (Instant Connect / Disconnect)
+    public func startUSBMonitoring() {
+        USBDetector.shared.startMonitoring { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                await self.handleUSBChangeEvent()
             }
         }
     }
 
-    public func stopConnectionMonitoring() {
-        connectionMonitoringTask?.cancel()
-        connectionMonitoringTask = nil
+    public func stopUSBMonitoring() {
+        USBDetector.shared.stopMonitoring()
     }
 
-    // MARK: - Live Battery Monitoring
+    public func handleUSBChangeEvent() async {
+        let connected = USBDetector.shared.detectConnectedAndroid()
+
+        if let android = connected {
+            if android.hasMTPInterface {
+                // Device is present on USB and exposes MTP interface!
+                if self.deviceInfo == nil && !self.isConnecting {
+                    await self.connectDevice(silent: true)
+                }
+                self.detectedChargeOnlyDevice = nil
+            } else {
+                // Device is present on USB, but in Charge-Only mode
+                if self.deviceInfo != nil {
+                    await self.disconnectDevice()
+                }
+                self.detectedChargeOnlyDevice = android
+            }
+        } else {
+            // No Android device on USB at all (cable was physically unplugged!)
+            if self.deviceInfo != nil || self.detectedChargeOnlyDevice != nil {
+                await self.disconnectDevice()
+                self.detectedChargeOnlyDevice = nil
+            }
+        }
+    }
+
+    // MARK: - Live Connection & Battery Monitoring
     private var batteryPollingTask: Task<Void, Never>?
 
     public func startBatteryPolling() {
         stopBatteryPolling()
         batteryPollingTask = Task { [weak self] in
+            var pollCounter = 0
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 10_000_000_000) // Poll every 10 seconds
+                try? await Task.sleep(nanoseconds: 1_500_000_000) // Poll every 1.5 seconds
                 guard let self = self, self.deviceInfo != nil else { break }
-                if !self.isTransferring {
+
+                // 1. Verify Android device is still physically present on USB
+                if USBDetector.shared.detectConnectedAndroid() == nil {
+                    await self.disconnectDevice()
+                    break
+                }
+
+                // 2. Periodically refresh battery and ensure MTP pipe is healthy
+                pollCounter += 1
+                if pollCounter % 4 == 0 && !self.isTransferring {
                     await self.refreshBatteryLevel()
                 }
             }
@@ -377,8 +390,14 @@ public final class AppViewModel {
 
     public func refreshBatteryLevel() async {
         guard !isTransferring else { return }
-        guard let (maxBat, curBat) = await mtpService.getBatteryLevel(),
-              let currentInfo = self.deviceInfo else { return }
+        guard let (maxBat, curBat) = await mtpService.getBatteryLevel() else {
+            // If getBatteryLevel returns nil while connected, connection was lost!
+            if self.deviceInfo != nil {
+                await self.disconnectDevice()
+            }
+            return
+        }
+        guard let currentInfo = self.deviceInfo else { return }
 
         if currentInfo.currentBattery != curBat || currentInfo.maxBattery != maxBat {
             self.deviceInfo = MTPDeviceInfo(
