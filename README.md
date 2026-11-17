@@ -2,10 +2,16 @@
 
 <div align="center">
 
-![MacSync Icon](MacSync/AppIcon.icns)
+<img src="assets/icon.png" width="128" alt="MacSync App Icon" />
+
+# MacSync
 
 **A modern, blazing-fast native macOS Android file transfer app.**  
 Direct USB connection via `libmtp` without ADB, Android File Transfer bugs, or background daemons.
+
+<br />
+
+<img src="assets/screenshot.png" width="850" alt="MacSync User Interface" />
 
 </div>
 
