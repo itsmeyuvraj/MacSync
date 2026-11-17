@@ -4,7 +4,8 @@ set -euo pipefail
 echo "==> Preparing MacSync DMG package..."
 
 APP_NAME="MacSync"
-DMG_NAME="MacSync.dmg"
+VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" MacSync/Info.plist 2>/dev/null || echo "1.0.0")
+DMG_NAME="${APP_NAME}-v${VERSION}.dmg"
 APP_BUNDLE="${APP_NAME}.app"
 
 if [ ! -d "${APP_BUNDLE}" ]; then
@@ -12,12 +13,12 @@ if [ ! -d "${APP_BUNDLE}" ]; then
     ./build.sh
 fi
 
-rm -f "${DMG_NAME}" "${DMG_NAME}.sha256"
+rm -f "${DMG_NAME}" "${DMG_NAME}.sha256" "MacSync.dmg" "MacSync.dmg.sha256"
 
 if command -v create-dmg >/dev/null 2>&1; then
     echo "==> Building installer DMG with create-dmg..."
     create-dmg \
-      --volname "${APP_NAME}" \
+      --volname "${APP_NAME} v${VERSION}" \
       --volicon "MacSync/AppIcon.icns" \
       --window-pos 200 120 \
       --window-size 660 400 \
@@ -41,7 +42,7 @@ if [ ! -f "${DMG_NAME}" ]; then
     ln -s /Applications "${STAGING_DIR}/Applications"
 
     hdiutil create \
-      -volname "${APP_NAME}" \
+      -volname "${APP_NAME} v${VERSION}" \
       -srcfolder "${STAGING_DIR}" \
       -ov \
       -format UDZO \
@@ -51,6 +52,8 @@ if [ ! -f "${DMG_NAME}" ]; then
 fi
 
 shasum -a 256 "${DMG_NAME}" > "${DMG_NAME}.sha256"
+cp -f "${DMG_NAME}" "MacSync.dmg"
+cp -f "${DMG_NAME}.sha256" "MacSync.dmg.sha256"
 
-echo "✅ DMG Package ready: ${DMG_NAME}"
+echo "✅ DMG Package ready: ${DMG_NAME} (also linked to MacSync.dmg)"
 echo "   SHA256: $(cat "${DMG_NAME}.sha256")"
