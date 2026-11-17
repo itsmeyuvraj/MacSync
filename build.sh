@@ -67,6 +67,7 @@ install_name_tool -id @rpath/libusb-1.0.0.dylib "${FRAMEWORKS_DIR}/libusb-1.0.0.
 install_name_tool -id @rpath/libmtp.9.dylib "${FRAMEWORKS_DIR}/libmtp.9.dylib"
 install_name_tool -change "${BREW_PREFIX}/opt/libusb/lib/libusb-1.0.0.dylib" @rpath/libusb-1.0.0.dylib "${FRAMEWORKS_DIR}/libmtp.9.dylib" 2>/dev/null || true
 install_name_tool -change "${BREW_PREFIX}/lib/libusb-1.0.0.dylib" @rpath/libusb-1.0.0.dylib "${FRAMEWORKS_DIR}/libmtp.9.dylib" 2>/dev/null || true
+install_name_tool -add_rpath @loader_path "${FRAMEWORKS_DIR}/libmtp.9.dylib" 2>/dev/null || true
 
 # Update main executable rpath and dylib link
 install_name_tool -add_rpath @executable_path/../Frameworks "MacSync.app/Contents/MacOS/MacSync" 2>/dev/null || true
