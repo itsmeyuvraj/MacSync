@@ -21,6 +21,9 @@ MacSync.app/
 MacSyncBinary
 *.ipa
 *.app.dSYM.zip
+*.dmg
+*.dmg.sha256
+dmg_staging/
 
 # Homebrew / Package artifacts
 *.dylib

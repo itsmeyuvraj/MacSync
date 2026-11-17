@@ -3,16 +3,32 @@ set -euo pipefail
 
 echo "==> Building MacSync Native Application..."
 
+if [ -d "/opt/homebrew" ]; then
+    BREW_PREFIX="/opt/homebrew"
+elif [ -d "/usr/local" ]; then
+    BREW_PREFIX="/usr/local"
+else
+    BREW_PREFIX="$(brew --prefix 2>/dev/null || echo '/opt/homebrew')"
+fi
+
 SDK_PATH="$(xcrun --show-sdk-path)"
-MACRO_PLUGIN_PATH="/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins"
+
+PLUGIN_FLAG=()
+if [ -d "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins" ]; then
+    PLUGIN_FLAG=(-plugin-path "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins")
+elif [ -d "$(xcode-select -p 2>/dev/null)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins" ]; then
+    PLUGIN_FLAG=(-plugin-path "$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins")
+fi
 
 swiftc \
   -sdk "${SDK_PATH}" \
-  -plugin-path "${MACRO_PLUGIN_PATH}" \
+  "${PLUGIN_FLAG[@]}" \
   -target arm64-apple-macosx14.0 \
   -O \
-  -I /opt/homebrew/opt/libmtp/include \
-  -L /opt/homebrew/opt/libmtp/lib \
+  -I "${BREW_PREFIX}/opt/libmtp/include" \
+  -I "${BREW_PREFIX}/include" \
+  -L "${BREW_PREFIX}/opt/libmtp/lib" \
+  -L "${BREW_PREFIX}/lib" \
   -lmtp \
   -import-objc-header MacSync/Bridging-Header.h \
   MacSync/Models/MTPModels.swift \
@@ -35,13 +51,6 @@ mv MacSyncBinary MacSync.app/Contents/MacOS/MacSync
 chmod +x MacSync.app/Contents/MacOS/MacSync
 
 echo "==> Bundling Homebrew libmtp & libusb dylibs into standalone App Bundle..."
-if [ -d "/opt/homebrew" ]; then
-    BREW_PREFIX="/opt/homebrew"
-elif [ -d "/usr/local" ]; then
-    BREW_PREFIX="/usr/local"
-else
-    BREW_PREFIX="$(brew --prefix 2>/dev/null || echo '/opt/homebrew')"
-fi
 
 FRAMEWORKS_DIR="MacSync.app/Contents/Frameworks"
 LIBMTP_SRC="${BREW_PREFIX}/opt/libmtp/lib/libmtp.9.dylib"
